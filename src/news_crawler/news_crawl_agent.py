@@ -390,6 +390,9 @@ def run_once(args: argparse.Namespace) -> AgentRunResult:
             include_content=args.include_content,
             start_date=args.start_date,
             end_date=args.end_date,
+            auto_pages=args.auto_pages
+            if args.auto_pages is not None
+            else bool(args.start_date or args.end_date),
             timeout=args.timeout,
             delay=args.delay,
         )
@@ -496,13 +499,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--start-date",
         type=parse_date_arg,
         default=None,
-        help="Ngay bat dau published_date, dinh dang YYYY-MM-DD.",
+        help="Ngay bat dau usable_from_date, dinh dang YYYY-MM-DD.",
     )
     parser.add_argument(
         "--end-date",
         type=parse_date_arg,
         default=None,
-        help="Ngay ket thuc published_date, inclusive, dinh dang YYYY-MM-DD.",
+        help="Ngay ket thuc usable_from_date, inclusive, dinh dang YYYY-MM-DD.",
+    )
+    parser.add_argument(
+        "--auto-pages",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Tu tinh max trang tu TotalRow. Mac dinh bat khi co --start-date "
+            "hoac --end-date."
+        ),
     )
     parser.add_argument(
         "--technology-keyword-only",

@@ -35,6 +35,7 @@ code=FPT&type=-1&page=1&pageSize=10
 ```
 - `type=-1`: lấy tất cả (tin + sự kiện); `type=0`: chỉ tin tức
 - Không cần `__RequestVerificationToken` trong payload này
+- **API không hỗ trợ lọc theo ngày** — crawler lọc client-side sau khi tính `usable_from_date`
 
 ## Cài đặt
 
@@ -45,7 +46,7 @@ pip install -r requirements.txt  # beautifulsoup4>=4.12
 ## Chạy nhanh — chỉ metadata (không fetch bài chi tiết)
 
 ```bash
-python3 src/news_crawler/vietstock_news_crawler.py \
+python3 src/news_crawler/vietstock/vietstock_news_crawler.py \
   --symbols FPT \
   --max-pages 3 \
   --no-include-content \
@@ -56,7 +57,7 @@ python3 src/news_crawler/vietstock_news_crawler.py \
 ## Crawl đầy đủ kèm nội dung bài viết
 
 ```bash
-python3 src/news_crawler/vietstock_news_crawler.py \
+python3 src/news_crawler/vietstock/vietstock_news_crawler.py \
   --symbols FPT,VCB,HPG \
   --max-pages 5 \
   --include-content \
@@ -65,16 +66,34 @@ python3 src/news_crawler/vietstock_news_crawler.py \
   --jsonl-output data/raw/vietstock_news.jsonl
 ```
 
-## Crawl theo khoảng ngày
+## Crawl theo khoảng `usable_from_date`
 
-Khoảng ngày được lọc theo `published_date`, `--end-date` được tính inclusive. Với listing
-Vietstock, crawler sẽ dừng phân trang sớm khi dữ liệu đã cũ hơn `--start-date`.
+Khoảng ngày được lọc theo **`usable_from_date`** (ngày an toàn để join với giá EOD), không phải `published_date`. `--end-date` được tính inclusive.
+
+Quy tắc `usable_from_date`:
+- Tin đăng **trước 14:45** (giờ VN) → cùng ngày
+- Tin đăng **từ 14:45 trở đi** → ngày làm việc kế tiếp
+- Tin cuối tuần → thứ Hai (hoặc ngày làm việc kế)
+
+Khi có `--start-date` hoặc `--end-date`, crawler tự bật `--auto-pages` để tính số trang từ `TotalRow`. Nếu có `--end-date` trong quá khứ, binary search nhảy tới trang gần `end_date` thay vì crawl từ trang 1.
 
 ```bash
-python3 src/news_crawler/vietstock_news_crawler.py \
-  --symbols FPT,VCB,HPG \
+python3 src/news_crawler/vietstock/vietstock_news_crawler.py \
+  --symbols FPT \
+  --start-date 2026-01-01 \
+  --end-date 2026-03-01 \
+  --auto-pages \
+  --no-include-content
+```
+
+Giới hạn số trang thủ công (khi không dùng auto-pages):
+
+```bash
+python3 src/news_crawler/vietstock/vietstock_news_crawler.py \
+  --symbols FPT \
   --start-date 2026-01-01 \
   --end-date 2026-06-08 \
+  --no-auto-pages \
   --max-pages 30 \
   --include-content \
   --append
@@ -83,7 +102,7 @@ python3 src/news_crawler/vietstock_news_crawler.py \
 ## Crawl thêm vào file hiện có (--append)
 
 ```bash
-python3 src/news_crawler/vietstock_news_crawler.py \
+python3 src/news_crawler/vietstock/vietstock_news_crawler.py \
   --symbols FPT \
   --max-pages 2 \
   --append \
@@ -115,7 +134,7 @@ python3 src/news_crawler/vietstock_news_crawler.py \
 ## Tái sử dụng hàm trong code khác
 
 ```python
-from src.news_crawler.vietstock_news_crawler import crawl_vietstock_news, write_jsonl
+from src.news_crawler.vietstock.vietstock_news_crawler import crawl_vietstock_news, write_jsonl
 from datetime import date
 from pathlib import Path
 
@@ -127,12 +146,12 @@ articles = crawl_vietstock_news(
     delay=1.5,          # giây giữa mỗi request
 )
 
-# Hoặc lọc theo khoảng published_date
+# Lọc theo khoảng usable_from_date
 articles_in_range = crawl_vietstock_news(
     "FPT",
     start_date=date(2026, 1, 1),
-    end_date=date(2026, 6, 8),
-    max_pages=30,
+    end_date=date(2026, 3, 1),
+    auto_pages=True,
     include_content=True,
 )
 
@@ -149,4 +168,4 @@ for a in articles:
 - Giữ `--delay` ≥ 1.0 giây để tôn trọng server Vietstock.
 - Endpoint `/data/getnews` không yêu cầu đăng nhập (public).
 - Một số bài có `Source=HOSE/HNX` là công bố thông tin chính thức — rất hữu ích cho sự kiện doanh nghiệp.
-- Tin sau 14:45 được `usable_from_date` đẩy sang ngày làm việc kế tiếp.
+- Tin sau 14:45 có `usable_from_date` khác `published_date` — đây là hành vi mong muốn khi merge với giá EOD.

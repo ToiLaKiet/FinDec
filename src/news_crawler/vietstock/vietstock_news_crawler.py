@@ -227,34 +227,69 @@ def article_published_date(article: VietstockArticle) -> date | None:
         return None
 
 
+def article_usable_from_date(article: VietstockArticle) -> date | None:
+    """Lay usable_from_date cua article ve date object."""
+    if not article.usable_from_date:
+        return None
+    try:
+        return date.fromisoformat(article.usable_from_date)
+    except ValueError:
+        return None
+
+
 def in_date_range(
     article: VietstockArticle,
     start_date: date | None,
     end_date: date | None,
 ) -> bool:
-    """Kiem tra bai viet co nam trong khoang published_date hay khong."""
+    """Kiem tra bai viet co nam trong khoang usable_from_date hay khong."""
     if not start_date and not end_date:
         return True
 
-    published = article_published_date(article)
-    if not published:
+    usable = article_usable_from_date(article)
+    if not usable:
         return False
-    if start_date and published < start_date:
+    if start_date and usable < start_date:
         return False
-    if end_date and published > end_date:
+    if end_date and usable > end_date:
         return False
     return True
+
+
+def page_date_bounds(
+    articles: list[VietstockArticle],
+) -> tuple[date | None, date | None]:
+    """Tra ve (newest_usable, oldest_usable) tu danh sach bai tren mot trang."""
+    dates = [
+        usable
+        for article in articles
+        if (usable := article_usable_from_date(article)) is not None
+    ]
+    if not dates:
+        return None, None
+    return max(dates), min(dates)
 
 
 def page_is_before_start(
     articles: list[VietstockArticle],
     start_date: date | None,
 ) -> bool:
-    """True neu toan bo trang co ngay dang cu hon start_date."""
+    """True neu toan bo trang co usable_from_date cu hon start_date."""
     if not start_date or not articles:
         return False
-    dates = [article_published_date(article) for article in articles]
-    return all(published is not None and published < start_date for published in dates)
+    dates = [article_usable_from_date(article) for article in articles]
+    return all(usable is not None and usable < start_date for usable in dates)
+
+
+def page_is_after_end(
+    articles: list[VietstockArticle],
+    end_date: date | None,
+) -> bool:
+    """True neu toan bo trang co usable_from_date moi hon end_date."""
+    if not end_date or not articles:
+        return False
+    _, oldest = page_date_bounds(articles)
+    return oldest is not None and oldest > end_date
 
 
 def normalize_url(url: str, base: str = VIETSTOCK_BASE) -> str:
@@ -572,6 +607,103 @@ def parse_ajax_news_response(raw_json: str, symbol: str) -> list[VietstockArticl
     return articles
 
 
+def _extract_total_row(raw_json: str) -> int | None:
+    """Lay TotalRow tu JSON listing Vietstock."""
+    try:
+        parsed = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(parsed, list) and parsed:
+        total = parsed[0].get("TotalRow")
+        if isinstance(total, int) and total > 0:
+            return total
+    return None
+
+
+def fetch_news_page(
+    symbol: str,
+    page: int,
+    *,
+    page_size: int = 10,
+    news_type: int = NEWS_TYPE_ALL,
+    timeout: int = 25,
+    referer: str = "",
+    cookies: dict[str, str] | None = None,
+) -> tuple[list[VietstockArticle], int | None]:
+    """Lay mot trang tin AJAX, tra ve (articles, total_row)."""
+    payload = {
+        "code": symbol.upper(),
+        "type": str(news_type),
+        "page": str(page),
+        "pageSize": str(page_size),
+    }
+    raw = fetch_ajax_post(
+        AJAX_NEWS_ENDPOINT,
+        payload,
+        timeout=timeout,
+        referer=referer or f"{VIETSTOCK_BASE}/{symbol}/tin-tuc-su-kien.htm",
+        cookies=cookies,
+    )
+    return parse_ajax_news_response(raw, symbol), _extract_total_row(raw)
+
+
+def find_news_start_page(
+    symbol: str,
+    *,
+    end_date: date,
+    max_page: int,
+    page_size: int = 10,
+    news_type: int = NEWS_TYPE_ALL,
+    timeout: int = 25,
+    delay: float = 0.0,
+    cookies: dict[str, str] | None = None,
+) -> int:
+    """Binary search trang dau tien co oldest usable_from_date <= end_date.
+
+    Listing Vietstock sap xep moi -> cu. Khi end_date nam trong qua khu, bo qua
+    cac trang dau neu toan bo bai tren trang co usable_from_date > end_date.
+    """
+    if max_page < 1:
+        return 1
+
+    referer = f"{VIETSTOCK_BASE}/{symbol}/tin-tuc-su-kien.htm"
+    low, high, best = 1, max_page, 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        try:
+            page_articles, _ = fetch_news_page(
+                symbol,
+                mid,
+                page_size=page_size,
+                news_type=news_type,
+                timeout=timeout,
+                referer=referer,
+                cookies=cookies,
+            )
+        except RuntimeError:
+            high = mid - 1
+            continue
+
+        if not page_articles:
+            high = mid - 1
+            continue
+
+        _, oldest = page_date_bounds(page_articles)
+        if oldest is None:
+            return 1
+        if oldest > end_date:
+            low = mid + 1
+        else:
+            best = mid
+            high = mid - 1
+
+        if delay > 0 and low <= high:
+            time.sleep(delay)
+
+    return best
+
+
 # ---------------------------------------------------------------------------
 # Lay danh sach tin tuc (phan trang)
 # ---------------------------------------------------------------------------
@@ -584,6 +716,7 @@ def fetch_news_list(
     news_type: int = NEWS_TYPE_ALL,   # -1 = tat ca (tin + su kien)
     start_date: date | None = None,
     end_date: date | None = None,
+    auto_pages: bool = False,
     timeout: int = 25,
     delay: float = 1.0,
     cookies: dict[str, str] | None = None,
@@ -595,16 +728,17 @@ def fetch_news_list(
         {code, type, page, pageSize}
     Khong can CSRF token trong payload cua endpoint nay.
 
-    Phan trang: bai dau tien tra ve co truong TotalRow = tong so bai. Ham tinh
-    so trang can thiet va dung lai khi het bai.
+    Khi co start_date/end_date, loc theo usable_from_date (ngay an toan join
+    gia EOD). Neu co end_date, binary search de nhay toi trang gan end_date.
 
     Args:
         symbol: Ma co phieu, vi du "FPT".
-        max_pages: So trang AJAX toi da (bao ve tranh loop vo han).
+        max_pages: So trang AJAX toi da khi auto_pages=False.
         page_size: So bai moi trang (mac dinh 10 theo JS Vietstock).
         news_type: Loai tin: -1=tat ca, 0=chi tin tuc, so khac=loai cu the.
-        start_date: Chi giu bai co published_date >= start_date.
-        end_date: Chi giu bai co published_date <= end_date.
+        start_date: Chi giu bai co usable_from_date >= start_date.
+        end_date: Chi giu bai co usable_from_date <= end_date.
+        auto_pages: Tu tinh max trang tu TotalRow.
         timeout: Timeout HTTP (giay).
         delay: Delay giua cac trang (giay).
         cookies: Cookie session (lay tu fetch_token_and_cookies).
@@ -614,42 +748,78 @@ def fetch_news_list(
     """
     referer = f"{VIETSTOCK_BASE}/{symbol}/tin-tuc-su-kien.htm"
     all_articles: list[VietstockArticle] = []
-    total_rows: int | None = None  # Tong so bai, lay tu TotalRow cua bai dau tien
+    date_filter = start_date is not None or end_date is not None
+    last_page = 0
 
-    for page in range(1, max_pages + 1):
-        # Payload chinh xac theo JS source cua Vietstock
-        payload = {
-            "code": symbol.upper(),
-            "type": str(news_type),
-            "page": str(page),
-            "pageSize": str(page_size),
-        }
+    try:
+        first_articles, total_rows = fetch_news_page(
+            symbol,
+            1,
+            page_size=page_size,
+            news_type=news_type,
+            timeout=timeout,
+            referer=referer,
+            cookies=cookies,
+        )
+    except RuntimeError as exc:
+        print(f"  [warn] Page 1 fetch failed: {exc}")
+        return []
 
-        try:
-            raw = fetch_ajax_post(
-                AJAX_NEWS_ENDPOINT,
-                payload,
-                timeout=timeout,
-                referer=referer,
-                cookies=cookies,
-            )
-        except RuntimeError as exc:
-            print(f"  [warn] Page {page} fetch failed: {exc}")
-            break
+    if not first_articles:
+        return []
 
-        page_articles = parse_ajax_news_response(raw, symbol)
+    if total_rows is None:
+        total_rows = len(first_articles)
+
+    if auto_pages and total_rows:
+        max_page = max(1, (total_rows + page_size - 1) // page_size)
+    else:
+        max_page = max(1, max_pages)
+
+    start_page = 1
+    if end_date:
+        start_page = find_news_start_page(
+            symbol,
+            end_date=end_date,
+            max_page=max_page,
+            page_size=page_size,
+            news_type=news_type,
+            timeout=timeout,
+            delay=min(delay, 0.5) if delay > 0 else 0.0,
+            cookies=cookies,
+        )
+        print(
+            f"  [{symbol}] Date range: start_page={start_page}/{max_page} "
+            f"for end_date={end_date.isoformat()}"
+        )
+
+    for page in range(start_page, max_page + 1):
+        last_page = page
+        if page == 1:
+            page_articles = first_articles
+        else:
+            try:
+                page_articles, page_total = fetch_news_page(
+                    symbol,
+                    page,
+                    page_size=page_size,
+                    news_type=news_type,
+                    timeout=timeout,
+                    referer=referer,
+                    cookies=cookies,
+                )
+            except RuntimeError as exc:
+                print(f"  [warn] Page {page} fetch failed: {exc}")
+                break
+            if page_total is not None:
+                total_rows = page_total
+
         if not page_articles:
-            break  # Het bai, ket thuc phan trang
+            break
+        if page_is_after_end(page_articles, end_date):
+            continue
         if page_is_before_start(page_articles, start_date):
-            break  # Listing sap xep moi -> cu, trang nay da qua khoang can lay.
-
-        # Lay TotalRow tu bai dau tien de biet co bao nhieu trang
-        try:
-            parsed_raw = json.loads(raw)
-            if isinstance(parsed_raw, list) and parsed_raw:
-                total_rows = parsed_raw[0].get("TotalRow", 0)
-        except Exception:
-            pass
+            break
 
         all_articles.extend(
             article
@@ -657,15 +827,23 @@ def fetch_news_list(
             if in_date_range(article, start_date, end_date)
         )
 
-        # Kiem tra da lay het chua
-        if total_rows is not None:
-            if len(all_articles) >= min(total_rows, max_pages * page_size):
+        if not date_filter:
+            pages_fetched = page - start_page + 1
+            if len(page_articles) < page_size:
                 break
-        elif len(page_articles) < page_size:
-            break  # Trang cuoi (it hon page_size bai)
+            if total_rows is not None and pages_fetched * page_size >= min(
+                total_rows, max_pages * page_size
+            ):
+                break
 
-        if page < max_pages:
+        if page < max_page:
             time.sleep(max(delay, 0))
+
+    if date_filter:
+        print(
+            f"  [{symbol}] Listing crawl: pages {start_page}-{last_page}, "
+            f"{len(all_articles)} articles in usable_from_date range."
+        )
 
     return all_articles
 
@@ -872,6 +1050,7 @@ def crawl_vietstock_news(
     include_content: bool = True,
     start_date: date | None = None,
     end_date: date | None = None,
+    auto_pages: bool = False,
     timeout: int = 25,
     delay: float = 1.5,
 ) -> list[VietstockArticle]:
@@ -885,11 +1064,12 @@ def crawl_vietstock_news(
 
     Args:
         symbol: Ma co phieu, vi du "FPT", "VCB".
-        max_pages: So trang AJAX toi da (10 bai/trang => max_pages*10 bai).
+        max_pages: So trang AJAX toi da khi auto_pages=False.
         page_size: So bai moi trang AJAX (nen de 10, Vietstock co the cap).
         include_content: Co fetch full content trang bai viet khong.
-        start_date: Chi giu bai co published_date >= start_date.
-        end_date: Chi giu bai co published_date <= end_date.
+        start_date: Chi giu bai co usable_from_date >= start_date.
+        end_date: Chi giu bai co usable_from_date <= end_date.
+        auto_pages: Tu tinh max trang tu TotalRow khi crawl theo ngay.
         timeout: Timeout HTTP (giay).
         delay: Delay giua cac request (giay), de tranh bi chan IP.
 
@@ -897,10 +1077,16 @@ def crawl_vietstock_news(
         Danh sach VietstockArticle da day du thong tin.
 
     Example:
-        # Lay 20 bai moi nhat cua FPT kem full content
-        articles = crawl_vietstock_news("FPT", max_pages=2, delay=1.5)
+        # Lay tin FPT trong khoang usable_from_date
+        articles = crawl_vietstock_news(
+            "FPT",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 3, 1),
+            auto_pages=True,
+            delay=1.5,
+        )
         for a in articles:
-            print(a.title, a.published_at)
+            print(a.title, a.usable_from_date)
     """
     validate_date_range(start_date, end_date)
     now = datetime.now(VN_TZ).isoformat(timespec="seconds")
@@ -920,6 +1106,7 @@ def crawl_vietstock_news(
         page_size=page_size,
         start_date=start_date,
         end_date=end_date,
+        auto_pages=auto_pages,
         timeout=timeout,
         delay=delay,
         cookies=cookies,
@@ -1024,22 +1211,31 @@ def build_parser() -> argparse.ArgumentParser:
         "--start-date",
         type=parse_date_arg,
         default=None,
-        help="Ngay bat dau published_date, dinh dang YYYY-MM-DD.",
+        help="Ngay bat dau usable_from_date, dinh dang YYYY-MM-DD.",
     )
     parser.add_argument(
         "--end-date",
         type=parse_date_arg,
         default=None,
-        help="Ngay ket thuc published_date, inclusive, dinh dang YYYY-MM-DD.",
+        help="Ngay ket thuc usable_from_date, inclusive, dinh dang YYYY-MM-DD.",
+    )
+    parser.add_argument(
+        "--auto-pages",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Tu tinh max trang tu TotalRow. Mac dinh bat khi co --start-date "
+            "hoac --end-date."
+        ),
     )
     parser.add_argument(
         "--output",
-        default="data/raw/vietstock_news.csv",
+        default="data/raw/vietstock_raw/vietstock_news.csv",
         help="Duong dan file CSV output.",
     )
     parser.add_argument(
         "--jsonl-output",
-        default="data/raw/vietstock_news.jsonl",
+        default="data/raw/vietstock_raw/vietstock_news.jsonl",
         help="Duong dan file JSONL output.",
     )
     parser.add_argument("--append", action="store_true", help="Them vao file cu thay vi ghi moi.")
@@ -1057,6 +1253,9 @@ def main(argv: list[str] | None = None) -> int:
 
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
     all_articles: list[VietstockArticle] = []
+    auto_pages = args.auto_pages
+    if auto_pages is None:
+        auto_pages = bool(args.start_date or args.end_date)
 
     for symbol in symbols:
         articles = crawl_vietstock_news(
@@ -1066,6 +1265,7 @@ def main(argv: list[str] | None = None) -> int:
             include_content=args.include_content,
             start_date=args.start_date,
             end_date=args.end_date,
+            auto_pages=auto_pages,
             timeout=args.timeout,
             delay=args.delay,
         )
