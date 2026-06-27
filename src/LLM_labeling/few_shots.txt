@@ -1,0 +1,196 @@
+
+### Ví dụ 1 — equity_overweight + personnel_change (từ bài "Chứng khoán Quốc Gia gom thành công 5 triệu cổ phiếu SAM")
+
+**Input (rút gọn):**
+> "Chứng khoán Quốc Gia đã mua vào thành công 5 triệu SAM bằng phương thức thỏa thuận, khớp lệnh; qua đó nâng sở hữu từ hơn 11,5 triệu cổ phiếu (3,03%) lên mức hơn 16,5 triệu cổ phiếu (4,35%). Thời gian giao dịch từ ngày 23/12/2025 đến ngày 21/1/2026. [...] ông Bùi Quang Bách được bổ nhiệm kiêm nhiệm thêm vị trí Chủ tịch Ủy ban Kiểm toán tạm thời từ ngày 20/1/2026 [...] ông Hoàng Lê Sơn không còn đảm nhận chức vụ Thành viên HĐQT độc lập, Chủ tịch Ủy ban Kiểm toán kể từ ngày 20/1/2026."
+
+**Output (rút gọn):**
+```json
+{
+  "language": "vi",
+  "main_topic": "ownership_change",
+  "entities": [
+    {"name": "Chứng khoán Quốc Gia", "type": "Company", "ticker": null, "role_in_article": "subject"},
+    {"name": "SAM Holdings", "type": "Company", "ticker": "SAM", "role_in_article": "subject"},
+    {"name": "Bùi Quang Bách", "type": "Person", "ticker": null, "role_in_article": "mentioned"},
+    {"name": "Hoàng Lê Sơn", "type": "Person", "ticker": null, "role_in_article": "mentioned"}
+  ],
+  "events": [
+    {
+      "event_type": "equity_overweight",
+      "entities_involved": ["Chứng khoán Quốc Gia", "SAM Holdings"],
+      "context": {
+        "who": "Chứng khoán Quốc Gia",
+        "what": "Mua thêm 5 triệu cổ phiếu SAM, nâng tỷ lệ sở hữu",
+        "when": "23/12/2025 - 21/1/2026",
+        "where": "HoSE",
+        "why": null,
+        "how": "thỏa thuận và khớp lệnh",
+        "tense": "completed",
+        "result": "Nâng sở hữu từ 3,03% lên 4,35% vốn SAM Holdings"
+      },
+      "attributes": {
+        "equity_holder": "Chứng khoán Quốc Gia",
+        "trading_shares": 5000000,
+        "date": "23/12/2025 - 21/1/2026",
+        "later_holding_shares": 16500000,
+        "later_holding_pct": 4.35,
+        "average_price": null
+      },
+      "evidence_text": "Chứng khoán Quốc Gia đã mua vào thành công 5 triệu SAM bằng phương thức thỏa thuận, khớp lệnh; qua đó nâng sờ hữu từ hơn 11,5 triệu cổ phiếu (3,03%) lên mức hơn 16,5 triệu cổ phiếu (4,35%)",
+      "confidence": 0.95
+    },
+    {
+      "event_type": "personnel_change",
+      "entities_involved": ["Bùi Quang Bách", "Chứng khoán Quốc Gia"],
+      "context": {
+        "who": "Bùi Quang Bách",
+        "what": "Được bổ nhiệm kiêm nhiệm Chủ tịch Ủy ban Kiểm toán tạm thời",
+        "when": "20/1/2026",
+        "where": null,
+        "why": null,
+        "how": null,
+        "tense": "completed",
+        "result": "Thời hạn bổ nhiệm 2025-2030"
+      },
+      "attributes": {
+        "person_name": "Bùi Quang Bách",
+        "role": "Chủ tịch Ủy ban Kiểm toán (tạm thời)",
+        "company": "Chứng khoán Quốc Gia",
+        "action": "appointed",
+        "effective_date": "2026-01-20"
+      },
+      "evidence_text": "ông Bùi Quang Bách được bổ nhiệm kiêm nhiệm thêm vị trí Chủ tịch Ủy ban Kiểm toán tạm thời từ ngày 20/1/2026",
+      "confidence": 0.9
+    }
+  ],
+  "summary": "Chứng khoán Quốc Gia hoàn tất mua 5 triệu cổ phiếu SAM, nâng sở hữu lên 4,35%; SAM Holdings cũng có thay đổi nhân sự HĐQT và bảo lãnh tín dụng cho công ty con."
+}
+
+
+### Ví dụ 2 — declare_bankruptcy bị bác (từ bài "Tòa án bác yêu cầu mở thủ tục phá sản đối với Coteccons của Ricons")
+
+**Input (rút gọn):**
+> "CTCP Xây dựng Coteccons (mã CTD) vừa công bố [...] Quyết định không mở thủ tục phá sản đối với Coteccons. Trước đó, vào tháng 7/2023, Ricons đã gửi đơn lên Tòa án yêu cầu mở thủ tục phá sản với Coteccons vì cho rằng CTD không có khả năng thanh toán các khoản nợ đến hạn với Ricons [...] dư nợ của Coteccons với Ricons ghi nhận hơn 322 tỷ đồng."
+
+**Output (rút gọn):**
+```json
+{
+  "language": "vi",
+  "main_topic": "lawsuit_bankruptcy",
+  "entities": [
+    {"name": "Coteccons", "type": "Company", "ticker": "CTD", "role_in_article": "subject"},
+    {"name": "Ricons", "type": "Company", "ticker": null, "role_in_article": "subject"},
+    {"name": "Tòa án nhân dân TP.HCM", "type": "Court", "ticker": null, "role_in_article": "mentioned"}
+  ],
+  "events": [
+    {
+      "event_type": "declare_bankruptcy",
+      "entities_involved": ["Coteccons", "Ricons", "Tòa án nhân dân TP.HCM"],
+      "context": {
+        "who": "Ricons (nguyên đơn), Coteccons (bị yêu cầu)",
+        "what": "Yêu cầu mở thủ tục phá sản đối với Coteccons do không thanh toán nợ đến hạn",
+        "when": "Đơn nộp tháng 7/2023, quyết định ngày 29/9/2023",
+        "where": "Tòa án nhân dân TP.HCM",
+        "why": "Coteccons được cho là không có khả năng thanh toán khoản nợ hơn 322 tỷ đồng với Ricons",
+        "how": "Ricons gửi đơn yêu cầu mở thủ tục phá sản lên tòa án",
+        "tense": "rejected",
+        "result": "Tòa án quyết định KHÔNG mở thủ tục phá sản đối với Coteccons"
+      },
+      "attributes": {
+        "company_name": "Coteccons",
+        "petitioner": "Ricons",
+        "court": "Tòa án nhân dân TP.HCM",
+        "obligation_amount": {"value": 322, "unit": "tỷ VND"},
+        "status": "rejected"
+      },
+      "evidence_text": "Quyết định không mở thủ tục phá sản đối với Coteccons",
+      "confidence": 0.95
+    },
+    {
+      "event_type": "lawsuit",
+      "entities_involved": ["Ricons", "Coteccons", "Tòa án nhân dân TP.HCM"],
+      "context": {
+        "who": "Ricons",
+        "what": "Tranh chấp hợp đồng kinh tế, khởi kiện yêu cầu mở thủ tục phá sản",
+        "when": "tháng 7/2023 - 29/9/2023",
+        "where": "Tòa án nhân dân TP.HCM",
+        "why": "Tranh chấp công nợ giữa hai công ty liên quan các khoản phải thu/phải trả",
+        "how": "Nộp đơn kiện tại tòa án",
+        "tense": "rejected",
+        "result": "Tòa án bác đơn yêu cầu"
+      },
+      "attributes": {
+        "plaintiff": "Ricons",
+        "defendant": "Coteccons",
+        "legal_institution": "Tòa án nhân dân TP.HCM",
+        "date": "2023-09-29",
+        "claim_amount": {"value": 322, "unit": "tỷ VND"},
+        "outcome": "rejected"
+      },
+      "evidence_text": "Ricons đã gửi đơn lên Tòa án yêu cầu mở thủ tục phá sản với Coteccons vì cho rằng CTD không có khả năng thanh toán các khoản nợ đến hạn với Ricons",
+      "confidence": 0.9
+    }
+  ],
+  "summary": "Tòa án nhân dân TP.HCM bác yêu cầu mở thủ tục phá sản với Coteccons do Ricons khởi xướng, liên quan tranh chấp công nợ hơn 322 tỷ đồng giữa hai công ty."
+}
+```
+
+### Ví dụ 3 — merge_org / chào mua công khai (từ bài "Platinum Victory muốn chi hơn 300 tỷ đồng mua cổ phiếu REE")
+
+**Output (chỉ phần events, rút gọn):**
+```json
+{
+  "event_type": "merge_org",
+  "entities_involved": ["Platinum Victory Pte. Ltd", "Công ty Cổ phần Cơ Điện Lạnh"],
+  "context": {
+    "who": "Platinum Victory Pte. Ltd",
+    "what": "Chào mua công khai 4 triệu cổ phiếu REE",
+    "when": null,
+    "where": null,
+    "why": "Nâng tỷ lệ sở hữu, hiện là cổ đông lớn nhất của REE",
+    "how": "Chào mua công khai qua đại lý Chứng khoán TPHCM (HSC)",
+    "tense": "planned",
+    "result": "Nếu thành công sẽ nâng sở hữu từ 34,85% lên 35,7% vốn điều lệ REE"
+  },
+  "attributes": {
+    "acquirer": "Platinum Victory Pte. Ltd",
+    "target": "Công ty Cổ phần Cơ Điện Lạnh",
+    "deal_value": {"value": 320, "unit": "tỷ VND"},
+    "stake_pct": 0.85,
+    "stake_pct_after": 35.7,
+    "status": "proposed"
+  },
+  "evidence_text": "Platinum Victory Pte. Ltd đăng ký chào mua công khai 4 triệu cổ phiếu REE, chiếm 0,85% vốn với giá chào mua dự kiến là 80.000 đồng/cổ phiếu, tương đương số tiền dự chi là hơn 320 tỷ đồng",
+  "confidence": 0.9
+}
+```
+
+### Ví dụ 4 — transfer_money / bồi thường (từ bài về vụ án Trương Mỹ Lan)
+
+**Output (chỉ phần events, rút gọn):**
+```json
+{
+  "event_type": "transfer_money",
+  "entities_involved": ["Trương Mỹ Lan", "Novaland"],
+  "context": {
+    "who": "Trương Mỹ Lan",
+    "what": "Đề nghị Novaland thanh toán tiền liên quan dự án Tân Thành Long An để khắc phục hậu quả vụ án",
+    "when": null,
+    "where": "dự án Tân Thành Long An",
+    "why": "Khắc phục hậu quả vụ án hình sự",
+    "how": "Thanh toán bằng tiền mặt",
+    "tense": "planned",
+    "result": null
+  },
+  "attributes": {
+    "payer": "Novaland",
+    "payee": "Trương Mỹ Lan (để khắc phục hậu quả vụ án)",
+    "amount": {"value": 2500, "unit": "tỷ VND"},
+    "purpose": "Khắc phục hậu quả vụ án",
+    "related_institution": null
+  },
+  "evidence_text": "bị cáo Lan đề nghị Novaland thanh toán 2.500 tỉ đồng bằng tiền mặt cho bị cáo liên quan đến dự án Tân Thành Long An để khắc phục hậu quả của vụ án",
+  "confidence": 0.85
+}
+```
