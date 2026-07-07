@@ -4,7 +4,7 @@ import argparse
 def merge_jsonl_files(input_folder):
     output_file = os.path.join(
         input_folder,
-        "cafef_news_2023_2026.jsonl"
+        "cafef_news_2021_2026.jsonl"
     )
 
     jsonl_files = sorted(

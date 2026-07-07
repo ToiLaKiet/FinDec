@@ -41,8 +41,7 @@ NHÓM 2 — VẬN HÀNH & GIAO DỊCH DOANH NGHIỆP (sức khỏe tài chính &
     cổ phiếu niêm yết thông thường — ví dụ: chuyển nhượng vốn góp công ty con,
     chuyển nhượng dự án, tài sản bất động sản)
 
-NHÓM 3 — CÁC SỰ KIỆN TÀI CHÍNH PHỔ BIẾN KHÁC (giữ lại từ schema gốc, dùng khi bài báo
-không thuộc 10 loại trên):
+NHÓM 3 — CÁC SỰ KIỆN TÀI CHÍNH PHỔ BIẾN KHÁC (giữ lại từ schema gốc, dùng khi bài báo không thuộc 10 loại trên):
 
 11. earnings_report (Báo cáo kết quả kinh doanh)
 12. dividend (Cổ tức)
