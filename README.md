@@ -1,5 +1,9 @@
 # SE365 Financial AI Demo
 
+<p align="center">
+  <img src="demo-ee/SE365/findec.png" alt="FinDec Logo" width="180" />
+</p>
+
 ## Giới thiệu
 
 Dự án là website demo hợp nhất cho hai luồng xử lý tài chính:
