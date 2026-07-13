@@ -1,7 +1,7 @@
 # SE365 Financial AI Demo
 
 <p align="center">
-  <img src="demo-ee/SE365/findec.png" alt="FinDec Logo" width="180" />
+  <img src="findec.png" alt="FinDec Logo" width="180" />
 </p>
 
 ## Giới thiệu
