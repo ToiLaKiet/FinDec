@@ -3,3 +3,5 @@ __pycache__/
 .DS_Store
 *.csv
 *.jsonl
+*.pkl 
+demo-ee/SE365-backend/model
